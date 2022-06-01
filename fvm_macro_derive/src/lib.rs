@@ -12,8 +12,6 @@ struct FvmActorMacroAttributes {
   dispatch_method: String
 }
 
-struct 
-
 #[proc_macro_derive(StateObject)]
 pub fn fvm_state_macro_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Construct a representation of Rust code as a syntax tree
