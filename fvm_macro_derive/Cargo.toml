@@ -1,0 +1,16 @@
+[package]
+name = "fvm_macro_derive"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "1.0"
+quote = "1.0"
+proc-macro2 = "1.0.39"
+fvm_sdk = { version = "1.0.0-rc.1", git = "https://github.com/filecoin-project/ref-fvm" }
+fvm_shared = { version = "0.7.0", git = "https://github.com/filecoin-project/ref-fvm" }
+fvm_ipld_blockstore = "0.1.1"
+fvm_ipld_encoding = "0.2.1"
