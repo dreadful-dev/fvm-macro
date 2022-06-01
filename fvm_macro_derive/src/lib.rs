@@ -7,10 +7,12 @@ use syn;
 struct ParseError;
 
 #[derive(Default, Debug)]
-struct FvmProcActorAttributes {
+struct FvmActorMacroAttributes {
   state: String,
   dispatch_method: String
 }
+
+struct 
 
 #[proc_macro_derive(StateObject)]
 pub fn fvm_state_macro_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -71,7 +73,7 @@ pub fn fvm_actor(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
   impl_fvm_actor(macro_attributes, name, fns, input)
 }
 
-fn impl_fvm_actor(macro_attributes: FvmProcActorAttributes, name: proc_macro2::TokenTree, fns: Vec<String>, original_stream: proc_macro2::TokenStream) -> proc_macro::TokenStream {
+fn impl_fvm_actor(macro_attributes: FvmActorMacroAttributes, name: proc_macro2::TokenTree, fns: Vec<String>, original_stream: proc_macro2::TokenStream) -> proc_macro::TokenStream {
   let arms = fns.iter().enumerate().map(|(i, x)| match_arm(i+1, &x, &name)).collect::<Vec<_>>();
   let state_class = format_ident!("{}", macro_attributes.state);
 
@@ -180,8 +182,8 @@ fn extract_pub_fns(tt: &proc_macro2::TokenTree) -> Vec<String> {
   v
 }
 
-fn parse_attributes(attr_string: String) -> FvmProcActorAttributes {
-  let mut attrs = FvmProcActorAttributes::default();
+fn parse_attributes(attr_string: String) -> FvmActorMacroAttributes {
+  let mut attrs = FvmActorMacroAttributes::default();
   let vec = attr_string
     .split(",")
     .into_iter()
