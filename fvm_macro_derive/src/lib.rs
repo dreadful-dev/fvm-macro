@@ -9,7 +9,8 @@ struct ParseError;
 #[derive(Default, Debug)]
 struct FvmActorMacroAttributes {
   state: String,
-  dispatch_method: String
+  dispatch_method: String,
+  invoke: bool
 }
 
 #[proc_macro_derive(StateObject)]
@@ -203,8 +204,14 @@ fn parse_attributes(attr_string: String) -> FvmActorMacroAttributes {
       "dispatch" => {
         attrs.dispatch_method = i[1].to_string();
       },
+      "invoke" => {
+        attrs.invoke = i[1].parse().unwrap_or_default();
+      }
       _ => {}
     }
   }
+
+  prinln!("{:?}", attrs);
+  
   attrs
 }
