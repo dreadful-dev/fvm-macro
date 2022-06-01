@@ -211,7 +211,7 @@ fn parse_attributes(attr_string: String) -> FvmActorMacroAttributes {
     }
   }
 
-  prinln!("{:?}", attrs);
-  
+  println!("{:?}", attrs);
+
   attrs
 }
