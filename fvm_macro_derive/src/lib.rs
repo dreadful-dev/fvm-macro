@@ -13,6 +13,17 @@ struct FvmActorMacroAttributes {
   invoke: bool
 }
 
+/// A macro to abort concisely.
+/// This should be part of the SDK as it's very handy.
+macro_rules! abort {
+  ($code:ident, $msg:literal $(, $ex:expr)*) => {
+      fvm_sdk::vm::abort(
+          fvm_shared::error::ExitCode::$code.value(),
+          Some(format!($msg, $($ex,)*).as_str()),
+      )
+  };
+}
+
 #[proc_macro_derive(StateObject)]
 pub fn fvm_state_macro_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Construct a representation of Rust code as a syntax tree
