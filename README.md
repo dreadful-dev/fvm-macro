@@ -93,6 +93,8 @@ impl ComputeActor {
 
 Each public method is extracted and assigned a number, because of this, the constructor needs to be the first public function in the impl. 
 
+Example code generated from the macro:
+
 ```rs
 impl Actor for ComputeActor {
       fn load() -> ComputeState {
