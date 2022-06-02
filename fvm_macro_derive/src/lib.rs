@@ -75,7 +75,7 @@ pub fn fvm_actor(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
 fn impl_fvm_actor(macro_attributes: FvmActorMacroAttributes, name: proc_macro2::TokenTree, fns: Vec<String>, original_stream: proc_macro2::TokenStream) -> proc_macro::TokenStream {
   let arms = fns.iter().enumerate().map(|(i, x)| match_arm(i+1, &x, &name)).collect::<Vec<_>>();
   let state_class = format_ident!("{}", macro_attributes.state);
-  let invoke_block = quote! {};
+  let mut invoke_block = quote! {};
 
   if macro_attributes.invoke != false {
     invoke_block = quote! {
