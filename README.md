@@ -123,10 +123,10 @@ impl Actor for ComputeActor {
         }
       }
     }
-
-    #[no_mangle]
-    pub fn invoke(id: u32) -> u32 {
-        <ComputeActor>::dispatch(id)
-    }
   };
+
+  #[no_mangle]
+  pub fn invoke(id: u32) -> u32 {
+      <ComputeActor>::dispatch(id)
+  }
 ```
