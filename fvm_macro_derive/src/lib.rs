@@ -15,7 +15,7 @@ enum DispatchType {
 #[derive(Default, Debug)]
 struct FvmActorMacroAttribute {
   state: String,
-  dispatch: String,
+  dispatch_type: String,
   invoke: bool
 }
 
@@ -88,8 +88,10 @@ pub fn fvm_actor(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
   let clone = input.clone();
  
   check_impl(&clone);
+
   let macro_attributes = parse_attributes(attr.to_string());
   let (name, fns) = meta(&clone);
+
   impl_fvm_actor(macro_attributes, name, fns, input)
 }
 
@@ -98,7 +100,7 @@ fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::T
   let arms = fns
     .iter()
     .enumerate()
-    .map(|(i, x)| match_arm(x, &name)).collect::<Vec<_>>();
+    .map(|(_i, x)| match_arm(x, &name, &macro_attributes.dispatch_type)).collect::<Vec<_>>();
 
   let state_class = format_ident!("{}", macro_attributes.state);
   let mut invoke_block = quote! {};
@@ -154,10 +156,13 @@ fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::T
   gen.into()
 }
 
-fn match_arm(attr: &ExportAttribute, class_name: &proc_macro2::TokenTree) -> proc_macro2::TokenStream {
+fn match_arm(attr: &ExportAttribute, class_name: &proc_macro2::TokenTree, dispatch_type: &String) -> proc_macro2::TokenStream {
   let fn_name = format_ident!("{}", attr.fn_name);
-  let match_expression = &attr.binding;
-  let lit = proc_macro2::Literal::string(match_expression);
+  let lit = match dispatch_type.as_str() {
+    "method_num" => proc_macro2::Literal::usize_unsuffixed(attr.binding.parse().expect("binding must be a number")),
+    "abi_selector" => proc_macro2::Literal::string(&attr.binding),
+    _ => panic!("unsupported dispatch_type {}", dispatch_type)
+  };
 
   quote! { #lit => <#class_name>::#fn_name(params, state), }
 }
@@ -296,7 +301,7 @@ fn parse_attributes(attr_string: String) -> FvmActorMacroAttribute {
         attrs.state = i[1].to_string();
       },
       "dispatch" => {
-        attrs.dispatch = i[1].to_string();
+        attrs.dispatch_type = i[1].to_string();
       },
       "invoke" => {
         attrs.invoke = i[1].parse().unwrap_or_default();
@@ -348,7 +353,7 @@ fn build_fvm_actor_attributes(parsed_args: &Vec<Vec<String>>) -> FvmActorMacroAt
         attrs.state = i[1].to_string();
       },
       "dispatch" => {
-        attrs.dispatch = i[1].to_string();
+        attrs.dispatch_type = i[1].to_string();
       },
       "invoke" => {
         attrs.invoke = i[1].parse().unwrap_or_default();
