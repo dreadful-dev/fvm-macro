@@ -6,11 +6,32 @@ use syn;
 
 struct ParseError;
 
+#[derive(Debug)]
+enum DispatchType {
+    MethodNum(String),
+    AbiSelector(String)
+}
+
 #[derive(Default, Debug)]
-struct FvmActorMacroAttributes {
+struct FvmActorMacroAttribute {
   state: String,
-  dispatch_method: String,
+  dispatch: String,
   invoke: bool
+}
+
+#[derive(Debug)]
+struct ExportAttribute {
+  fn_name: String,
+  binding: String
+}
+
+impl ExportAttribute {
+  fn new(fn_name: String, binding: String) -> Self {
+    ExportAttribute {
+      fn_name,
+      binding
+    }
+  }
 }
 
 #[proc_macro_derive(StateObject)]
@@ -65,15 +86,20 @@ fn impl_fvm_state_macro(ast: &syn::DeriveInput) -> proc_macro::TokenStream {
 pub fn fvm_actor(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
   let input = proc_macro2::TokenStream::from(item);
   let clone = input.clone();
-
+ 
   check_impl(&clone);
   let macro_attributes = parse_attributes(attr.to_string());
   let (name, fns) = meta(&clone);
   impl_fvm_actor(macro_attributes, name, fns, input)
 }
 
-fn impl_fvm_actor(macro_attributes: FvmActorMacroAttributes, name: proc_macro2::TokenTree, fns: Vec<String>, original_stream: proc_macro2::TokenStream) -> proc_macro::TokenStream {
-  let arms = fns.iter().enumerate().map(|(i, x)| match_arm(i+1, &x, &name)).collect::<Vec<_>>();
+fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::TokenTree, fns: Vec<ExportAttribute>, original_stream: proc_macro2::TokenStream) -> proc_macro::TokenStream {
+
+  let arms = fns
+    .iter()
+    .enumerate()
+    .map(|(i, x)| match_arm(x, &name)).collect::<Vec<_>>();
+
   let state_class = format_ident!("{}", macro_attributes.state);
   let mut invoke_block = quote! {};
 
@@ -124,16 +150,19 @@ fn impl_fvm_actor(macro_attributes: FvmActorMacroAttributes, name: proc_macro2::
     #invoke_block
   };
 
+  println!("{}", gen.to_string());
   gen.into()
 }
 
-fn match_arm(i: usize, fn_name: &String, class_name: &proc_macro2::TokenTree) -> proc_macro2::TokenStream {
-  let fn_name = format_ident!("{}", fn_name);
-  let lit = proc_macro2::Literal::usize_unsuffixed(i);
+fn match_arm(attr: &ExportAttribute, class_name: &proc_macro2::TokenTree) -> proc_macro2::TokenStream {
+  let fn_name = format_ident!("{}", attr.fn_name);
+  let match_expression = &attr.binding;
+  let lit = proc_macro2::Literal::string(match_expression);
+
   quote! { #lit => <#class_name>::#fn_name(params, state), }
 }
 
-fn check_impl (t: &proc_macro2::TokenStream) {
+fn check_impl(t: &proc_macro2::TokenStream) {
   let stream = t.clone();
   let mut iter = stream.into_iter();
 
@@ -161,13 +190,62 @@ fn extract_identifier(tt: &proc_macro2::TokenTree) -> String {
   r.unwrap_or_default()
 }
 
-fn meta(ts: &proc_macro2::TokenStream) -> (proc_macro2::TokenTree, Vec<String>) {
+fn meta(ts: &proc_macro2::TokenStream) -> (proc_macro2::TokenTree, Vec<ExportAttribute>) {
   let mut item_iter = ts.clone().into_iter();
   let _impl = item_iter.next().unwrap();
   let name = item_iter.next().unwrap();
-  let group = item_iter.next().unwrap();
-  let fns = extract_pub_fns(&group);
-  (name, fns)
+  let group = item_iter.next().unwrap();  
+  let exported_methods = methods(&group);
+  (name, exported_methods)
+}
+
+fn methods(tt: &proc_macro2::TokenTree) -> Vec<ExportAttribute> {
+  let mut previous: Option<proc_macro2::TokenTree> = None;
+  let mut current: Option<proc_macro2::TokenTree> = None;
+  let mut capture_next = false;
+  let mut next_binding: Option<String> = None;
+  
+  let mut exported: Vec<ExportAttribute> = vec![];
+
+  match tt {
+    proc_macro2::TokenTree::Group(g) => {
+      let gi = g.stream().into_iter();
+      for g in gi {
+        previous = current;
+        current = Some(g.clone());
+
+        match g {
+          proc_macro2::TokenTree::Group(g) => {
+            if previous.as_ref().unwrap().to_string() == "#" {
+              capture_next = true;
+              let inner = g.stream().into_iter();
+              for i in inner {
+                match i {
+                  proc_macro2::TokenTree::Group(g) => {
+                    next_binding = extract_binding(&parse_macro_args(g.stream().to_string()));
+                  },
+                  _ => ()
+                }
+              }
+            } else if capture_next {
+              capture_next = false;
+              match next_binding {
+                Some(binding) => {
+                  exported.push(ExportAttribute::new(previous.as_ref().unwrap().to_string(), binding));
+                  next_binding = None;
+                }
+                None => ()
+              }
+            }
+          },
+          _ => {}
+        }
+      }
+    },
+    _ => ()
+  }
+
+  exported
 }
 
 fn extract_pub_fns(tt: &proc_macro2::TokenTree) -> Vec<String> {
@@ -193,8 +271,8 @@ fn extract_pub_fns(tt: &proc_macro2::TokenTree) -> Vec<String> {
   v
 }
 
-fn parse_attributes(attr_string: String) -> FvmActorMacroAttributes {
-  let mut attrs = FvmActorMacroAttributes::default();
+fn parse_attributes(attr_string: String) -> FvmActorMacroAttribute {
+  let mut attrs = FvmActorMacroAttribute::default();
   
   // invoke by default
   attrs.invoke = true;
@@ -218,7 +296,7 @@ fn parse_attributes(attr_string: String) -> FvmActorMacroAttributes {
         attrs.state = i[1].to_string();
       },
       "dispatch" => {
-        attrs.dispatch_method = i[1].to_string();
+        attrs.dispatch = i[1].to_string();
       },
       "invoke" => {
         attrs.invoke = i[1].parse().unwrap_or_default();
@@ -228,6 +306,56 @@ fn parse_attributes(attr_string: String) -> FvmActorMacroAttributes {
   }
 
   println!("{:?}", attrs);
+
+  attrs
+}
+fn parse_macro_args(attr_string: String) -> Vec<Vec<String>> {
+  attr_string
+    .split(",")
+    .into_iter()
+    .map(|x| x.to_string())
+    .collect::<Vec<String>>()
+    .into_iter()
+    .map(|x: String| x.replace("\"", "")
+      .split(" = ")
+      .into_iter()
+      .map(|x| x.trim().to_string())
+      .collect::<Vec<String>>())
+    .collect::<Vec<Vec<String>>>()
+}
+
+fn extract_binding (parsed_args: &Vec<Vec<String>>) -> Option<String> {
+  for arg in parsed_args {
+    match arg[0].as_str() {
+      "binding" => {
+        return Some(arg[1].clone());
+      },
+      _ => {
+        return None;
+      }
+    }
+  }
+  None
+}
+
+fn build_fvm_actor_attributes(parsed_args: &Vec<Vec<String>>) -> FvmActorMacroAttribute {
+  let mut attrs = FvmActorMacroAttribute::default();
+  attrs.invoke = true;
+
+  for i in parsed_args {
+    match i[0].as_str() {
+      "state" => {
+        attrs.state = i[1].to_string();
+      },
+      "dispatch" => {
+        attrs.dispatch = i[1].to_string();
+      },
+      "invoke" => {
+        attrs.invoke = i[1].parse().unwrap_or_default();
+      },
+      _ => {}
+    }
+  }
 
   attrs
 }
