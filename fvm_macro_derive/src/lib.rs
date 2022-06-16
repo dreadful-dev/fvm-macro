@@ -156,6 +156,11 @@ fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::T
   gen.into()
 }
 
+#[proc_macro_attribute]
+pub fn fvm_export(_attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+  item
+}
+
 fn match_arm(attr: &ExportAttribute, class_name: &proc_macro2::TokenTree, dispatch_type: &String) -> proc_macro2::TokenStream {
   let fn_name = format_ident!("{}", attr.fn_name);
   let lit = match dispatch_type.as_str() {
@@ -314,6 +319,7 @@ fn parse_attributes(attr_string: String) -> FvmActorMacroAttribute {
 
   attrs
 }
+
 fn parse_macro_args(attr_string: String) -> Vec<Vec<String>> {
   attr_string
     .split(",")
