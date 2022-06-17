@@ -157,11 +157,12 @@ fn match_arm(attr: &ExportAttribute, class_name: &proc_macro2::TokenTree, dispat
 }
 
 fn method_num_dispatch(state_class: String, name: proc_macro2::TokenTree, arms: Vec<proc_macro2::TokenStream>) -> proc_macro2::TokenStream {
+  let class_ident = format_ident!("{}", state_class);
   quote!{
     fn dispatch(id: u32) -> u32 {
       let params = sdk::message::params_raw(id).unwrap().1;
       let params = RawBytes::new(params);
-      let state: #state_class = <#name>::load();
+      let state: #class_ident = <#name>::load();
 
       let ret: Option<RawBytes> = match sdk::message::method_number() {
         #(#arms)*
