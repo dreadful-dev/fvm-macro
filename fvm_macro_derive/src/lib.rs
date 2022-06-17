@@ -4,13 +4,9 @@ use proc_macro2;
 use quote::{quote, format_ident};
 use syn;
 
-struct ParseError;
+use log::{debug};
 
-#[derive(Debug)]
-enum DispatchType {
-    MethodNum(String),
-    AbiSelector(String)
-}
+struct ParseError;
 
 #[derive(Default, Debug)]
 struct FvmActorMacroAttribute {
@@ -96,7 +92,7 @@ pub fn fvm_actor(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
 }
 
 fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::TokenTree, fns: Vec<ExportAttribute>, original_stream: proc_macro2::TokenStream) -> proc_macro::TokenStream {
-
+  env_logger::init();
   let arms = fns
     .iter()
     .enumerate()
@@ -104,6 +100,11 @@ fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::T
 
   let state_class = format_ident!("{}", macro_attributes.state);
   let mut invoke_block = quote! {};
+
+  let dispatch_block = match macro_attributes.dispatch_type.as_str() {
+    "method_num" => method_num_dispatch(macro_attributes.state, name.clone(), arms),
+    _ => panic!("Unsupported dispatch type: {}", macro_attributes.dispatch_type)
+  };
 
   if macro_attributes.invoke != false {
     invoke_block = quote! {
@@ -129,30 +130,13 @@ fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::T
           _ => <#state_class>::load()
         }
       }
-      fn dispatch(id: u32) -> u32 {
-        let params = sdk::message::params_raw(id).unwrap().1;
-        let params = RawBytes::new(params);
-        let state: #state_class = <#name>::load();
-
-        let ret: Option<RawBytes> = match sdk::message::method_number() {
-          #(#arms)*
-          _ => abort!(USR_UNHANDLED_MESSAGE, "unrecognized method"),
-        };
-
-        match ret {
-          None => NO_DATA_BLOCK_ID,
-          Some(v) => match sdk::ipld::put_block(DAG_CBOR, v.bytes()) {
-              Ok(id) => id,
-              Err(err) => abort!(USR_SERIALIZATION, "failed to store return value: {}", err),
-          },
-        }
-      }
+      #dispatch_block
     }
 
     #invoke_block
   };
 
-  println!("{}", gen.to_string());
+  debug!("{}", gen.to_string());
   gen.into()
 }
 
@@ -170,6 +154,29 @@ fn match_arm(attr: &ExportAttribute, class_name: &proc_macro2::TokenTree, dispat
   };
 
   quote! { #lit => <#class_name>::#fn_name(params, state), }
+}
+
+fn method_num_dispatch(state_class: String, name: proc_macro2::TokenTree, arms: Vec<proc_macro2::TokenStream>) -> proc_macro2::TokenStream {
+  quote!{
+    fn dispatch(id: u32) -> u32 {
+      let params = sdk::message::params_raw(id).unwrap().1;
+      let params = RawBytes::new(params);
+      let state: #state_class = <#name>::load();
+
+      let ret: Option<RawBytes> = match sdk::message::method_number() {
+        #(#arms)*
+        _ => abort!(USR_UNHANDLED_MESSAGE, "unrecognized method"),
+      };
+
+      match ret {
+        None => NO_DATA_BLOCK_ID,
+        Some(v) => match sdk::ipld::put_block(DAG_CBOR, v.bytes()) {
+            Ok(id) => id,
+            Err(err) => abort!(USR_SERIALIZATION, "failed to store return value: {}", err),
+        },
+      }
+    }
+  }
 }
 
 fn check_impl(t: &proc_macro2::TokenStream) {
