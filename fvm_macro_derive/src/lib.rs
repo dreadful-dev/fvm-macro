@@ -4,8 +4,6 @@ use proc_macro2;
 use quote::{quote, format_ident};
 use syn;
 
-use log::{debug};
-
 struct ParseError;
 
 #[derive(Default, Debug)]
@@ -92,7 +90,6 @@ pub fn fvm_actor(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
 }
 
 fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::TokenTree, fns: Vec<ExportAttribute>, original_stream: proc_macro2::TokenStream) -> proc_macro::TokenStream {
-  env_logger::init();
   let arms = fns
     .iter()
     .enumerate()
@@ -136,7 +133,7 @@ fn impl_fvm_actor(macro_attributes: FvmActorMacroAttribute, name: proc_macro2::T
     #invoke_block
   };
 
-  debug!("{}", gen.to_string());
+  println!("{}", gen.to_string());
   gen.into()
 }
 
